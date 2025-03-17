@@ -6,7 +6,10 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "httpx>=0.28.1",
+    "ipdb>=0.13.13",
     "mcp[cli]>=1.2.0",
+    "numpy>=2.2.4",
+    "pillow>=11.1.0",
 ]
 
 [build-system]
