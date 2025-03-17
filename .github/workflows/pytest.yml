@@ -10,17 +10,14 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ['3.10']
-
+    
     steps:
     - uses: actions/checkout@v3
     
-    - name: Set up Python ${{ matrix.python-version }}
+    - name: Set up Python 3.10
       uses: actions/setup-python@v4
       with:
-        python-version: ${{ matrix.python-version }}
+        python-version: '3.10'
         cache: 'pip'
     
     - name: Install uv
@@ -34,4 +31,4 @@ jobs:
     
     - name: Run tests
       run: |
-        uv run pytest 
+        uv run pytest
