@@ -3,7 +3,7 @@ from mcp.client.stdio import stdio_client
 
 # Create server parameters for stdio connection
 server_params = StdioServerParameters(
-    command="/Users/sunilkumar/.local/bin/uv",  # Executable
+    command="uv",  # Executable
     args=["run", "python", "image_server.py"],  # Optional command line arguments
     env=None,  # Optional environment variables
 )

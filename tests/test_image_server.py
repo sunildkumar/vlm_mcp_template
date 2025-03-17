@@ -9,7 +9,7 @@ class TestImageServer:
     def setup_method(self):
         # Server parameters for stdio connection
         self.server_params = StdioServerParameters(
-            command="/Users/sunilkumar/.local/bin/uv",
+            command="uv",
             args=["run", "python", "image_server.py"],
             env=None,
         )
