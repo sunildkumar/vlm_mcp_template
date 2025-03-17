@@ -9,7 +9,7 @@ mcp = FastMCP("Echo")
 
 def pil_image_to_mcp_image(pil_img: PILImage.Image, format: str = "png") -> Image:
     """
-    Convert a PIL Image to an MCP Image with embedded metadata.
+    Convert a PIL Image to an MCP Image with embedded metadata necessary to reconstruct the image.
     
     Args:
         pil_img: The PIL Image object
@@ -42,15 +42,79 @@ def pil_image_to_mcp_image(pil_img: PILImage.Image, format: str = "png") -> Imag
     return Image(data=combined_data, format=format)
 
 
+def mcp_image_to_pil_image(image_data: bytes) -> PILImage.Image:
+    """
+    Convert MCP Image bytes back to a PIL Image.
+    
+    Args:
+        image_data: The MCP Image bytes with embedded metadata: [4-byte metadata length][metadata JSON][image bytes]
+        
+    Returns:
+        A PIL Image reconstructed from the bytes
+    """
+    # Extract metadata length (first 4 bytes)
+    metadata_length = struct.unpack(">I", image_data[:4])[0]
+    
+    # Extract and parse metadata
+    metadata_bytes = image_data[4:4+metadata_length]
+    metadata = json.loads(metadata_bytes.decode('utf-8'))
+    
+    # Extract image bytes
+    image_bytes = image_data[4+metadata_length:]
+    
+    # Get image properties from metadata
+    width = metadata["width"]
+    height = metadata["height"]
+    mode = metadata["mode"]
+    
+    # Convert bytes to PIL Image
+    img = PILImage.frombytes(mode=mode, size=(width, height), data=image_bytes)
+    
+    return img
+
+
 @mcp.tool()
 def echo_image(image_path: str) -> Image:
-    """Echo an image as a tool"""
+    """
+    Echo an image as a tool.
+    
+    Args:
+        image_path: The path to the image file to be echoed.
+        
+    Returns:
+        An MCP Image object containing the echoed image data.
+    """
     img = PILImage.open(image_path)
     
     mcp_image = pil_image_to_mcp_image(img)
     
-    # Write the combined data to file (for debugging/testing)
-    with open("bytes.txt", "wb") as file:
-        file.write(mcp_image.data)
+    return mcp_image
+
+
+@mcp.tool()
+def rotate_image(image_path: str, direction: str) -> Image:
+    """
+    Rotate an image by 90 degrees.
+
+    Args:
+        direction: The direction to rotate the image, either 'clockwise' or 'counterclockwise'.
+        
+    Returns:
+        An MCP Image object containing the rotated image data.
+    """
+    img = PILImage.open(image_path)
+    if direction == "clockwise":
+        img = img.rotate(-90, expand=True) 
+    elif direction == "counterclockwise":
+        img = img.rotate(90, expand=True)   
+    else:
+        raise ValueError("Invalid direction")
+    
+    mcp_image = pil_image_to_mcp_image(img)
     
     return mcp_image
+
+
+if __name__ == "__main__":
+    # Initialize and run the server
+    mcp.run(transport='stdio')
