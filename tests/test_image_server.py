@@ -1,3 +1,4 @@
+import re
 from contextlib import asynccontextmanager
 
 import pytest
@@ -15,19 +16,30 @@ class TestImageServer:
         )
     
     @asynccontextmanager
-    async def get_session(self):
+    async def get_session(self): 
+        '''
+        Context manager of context managers that starts a session with the MCP server so we can try querying it
+        '''
         async with stdio_client(self.server_params) as (read, write):
             async with ClientSession(read, write) as session:
-                # Initialize the connection
                 await session.initialize()
                 yield session
     
     @pytest.mark.asyncio
     async def test_list_tools(self):
+        '''
+        Verifies that the expected tools exist
+        '''
         async with self.get_session() as session:
-            # Now we can focus on the actual test
             tools = await session.list_tools()
-            print(tools)
+            
+            tools = str(tools)
+            
+            expected_tools = ["echo_image", "rotate_image"]
+            
+
+            actual_tools = re.findall(r"name='([^']*)'", tools)
+            
             assert tools is not None
-            # Add more specific assertions about tools here
+            assert sorted(actual_tools) == sorted(expected_tools)
     

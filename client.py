@@ -19,6 +19,8 @@ async def run():
 
             # List available tools
             tools = await session.list_tools()
+            
+            
 
             print(tools)
 
