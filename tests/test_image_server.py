@@ -77,6 +77,51 @@ class TestImageServer:
             # Verify all pixels are identical
             assert np.array_equal(original_array, echo_array), "Images are not identical pixelwise"
     
+    @pytest.mark.asyncio
+    async def test_rotate_image(self):
+        '''
+        Verifies that the rotate_image tool works correctly by comparing server-rotated
+        images with locally rotated images using PIL
+        '''
+        async with self.get_session() as session:
+            # Test clockwise rotation
+            clockwise_result = await session.call_tool(
+                "rotate_image", 
+                arguments={"image_path": self.image_path, "direction": "clockwise"}
+            )
+            assert len(clockwise_result.content) == 1
+            clockwise_bytes = base64.b64decode(clockwise_result.content[0].data)
+            server_clockwise_image = mcp_image_to_pil_image(clockwise_bytes)
+            
+            # Create the same rotation locally with PIL
+            local_clockwise_image = self.original_image.rotate(-90, expand=True)
+            
+            # Test counterclockwise rotation
+            counterclockwise_result = await session.call_tool(
+                "rotate_image", 
+                arguments={"image_path": self.image_path, "direction": "counterclockwise"}
+            )
+            assert len(counterclockwise_result.content) == 1
+            counterclockwise_bytes = base64.b64decode(counterclockwise_result.content[0].data)
+            server_counterclockwise_image = mcp_image_to_pil_image(counterclockwise_bytes)
+            
+            # Create the same rotation locally with PIL
+            local_counterclockwise_image = self.original_image.rotate(90, expand=True)
+            
+            # Convert images to numpy arrays for comparison
+            server_clockwise_array = np.array(server_clockwise_image)
+            local_clockwise_array = np.array(local_clockwise_image)
+            server_counterclockwise_array = np.array(server_counterclockwise_image)
+            local_counterclockwise_array = np.array(local_counterclockwise_image)
+            
+            # Verify dimensions match
+            assert server_clockwise_array.shape == local_clockwise_array.shape
+            assert server_counterclockwise_array.shape == local_counterclockwise_array.shape
+            
+            # Verify the server-rotated images match the locally-rotated images
+            assert np.array_equal(server_clockwise_array, local_clockwise_array), "Clockwise rotation doesn't match"
+            assert np.array_equal(server_counterclockwise_array, local_counterclockwise_array), "Counterclockwise rotation doesn't match"
+    
             
             
             
