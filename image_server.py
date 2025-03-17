@@ -115,6 +115,65 @@ def rotate_image(image_path: str, direction: str) -> Image:
     return mcp_image
 
 
+@mcp.tool()
+def crop_and_zoom(image_path: str, x_min: float, y_min: float, x_max: float, y_max: float) -> Image:
+    """
+    Crop and zoom an image based on a normalized bounding box.
+    
+    Args:
+        image_path: The path to the image file to be cropped.
+        x_min: Left boundary of crop box (normalized 0-1).
+        y_min: Top boundary of crop box (normalized 0-1).
+        x_max: Right boundary of crop box (normalized 0-1).
+        y_max: Bottom boundary of crop box (normalized 0-1).
+        
+    Returns:
+        An MCP Image object containing the cropped image data.
+    """
+    # Validate input coordinates
+    if not (0 <= x_min < x_max <= 1 and 0 <= y_min < y_max <= 1):
+        raise ValueError("Invalid bounding box coordinates. Must be between 0 and 1 with min < max.")
+    
+    # Open the image
+    img = PILImage.open(image_path)
+    width, height = img.size
+    
+    # Convert normalized coordinates to pixel coordinates
+    # Ensure we don't exceed image boundaries by clamping to width-1 and height-1
+    left = int(x_min * width)
+    top = int(y_min * height)
+    right = min(int(x_max * width), width)
+    bottom = min(int(y_max * height), height)
+    
+    # Crop the image
+    cropped_img = img.crop((left, top, right, bottom))
+    
+    # Resize the image to the original size while maintaining aspect ratio of the crop
+    original_width, original_height = img.size
+    crop_width, crop_height = cropped_img.size
+    
+    # Calculate the scaling factor to fit the cropped image back to original dimensions
+    # while preserving aspect ratio
+    width_ratio = original_width / crop_width
+    height_ratio = original_height / crop_height
+    
+    # Use the smaller ratio to ensure the image fits within the original dimensions
+    scale_factor = min(width_ratio, height_ratio)
+    
+    # Calculate new dimensions
+    new_width = int(crop_width * scale_factor)
+    new_height = int(crop_height * scale_factor)
+    
+    # Resize the cropped image
+    resized_img = cropped_img.resize((new_width, new_height), PILImage.Resampling.LANCZOS)
+    
+    # Convert to MCP image and return
+    mcp_image = pil_image_to_mcp_image(resized_img
+                                       )
+    
+    return mcp_image
+
+
 if __name__ == "__main__":
     # Initialize and run the server
     mcp.run(transport='stdio')
