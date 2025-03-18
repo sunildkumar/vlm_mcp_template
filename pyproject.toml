@@ -3,9 +3,8 @@ name = "mcp_vlm_server"
 version = "0.1.0"
 description = "A simple MCP server for VLMs"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 dependencies = [
-    "httpx>=0.28.1",
     "ipdb>=0.13.13",
     "mcp[cli]>=1.2.0",
     "numpy>=2.2.4",
@@ -13,5 +12,9 @@ dependencies = [
     "pytest-asyncio>=0.25.3",
     "pytest>=8.3.5",
 ]
+
+[tool.uv.sources]
+# I had to modify verifiers to make the `brave-search` dependency optional, as it doesn't work with mcp
+verifiers = { path = "../verifiers", editable = true }
 
 
