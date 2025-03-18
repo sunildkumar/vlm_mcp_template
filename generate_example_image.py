@@ -5,18 +5,15 @@ image_height = 2048
 
 
 def generate_image():
-    # Create a new white image (without text)
+    # Create a new white image
     base_image = Image.new("RGB", (image_width, image_height), color="white")
     base_draw = ImageDraw.Draw(base_image)
     
     # Draw a large down arrow character on the left side
     draw_arrow_character(base_draw)
     
-    # Draw a hollow black box in the top right corner (without text)
+    # Draw a hollow black box in the top right corner
     draw_hollow_box(base_draw)
-    
-    # Save the base image
-    base_image.save("base_image.png")
     
     # Create a separate transparent image for text only
     text_overlay = Image.new("RGBA", (image_width, image_height), color=(0, 0, 0, 0))
@@ -24,24 +21,21 @@ def generate_image():
     # Draw the text on the overlay
     draw_upside_down_text(text_overlay)
     
-    # Save the text overlay
-    text_overlay.save("text_overlay.png")
-    
     # Combine the images
     final_image = Image.alpha_composite(base_image.convert("RGBA"), text_overlay)
     
-    # Save the combined image
+    # Save the final image
     final_image.save("example_image.png")
-    print("Images saved: base_image.png, text_overlay.png, example_image.png")
+    print("Image saved as example_image.png")
 
 
 def draw_arrow_character(draw):
     # Use the down arrow Unicode character: ↓
     arrow_char = "↓"
     
-    # Double the font size for the larger image
-    font_size = 800  # Doubled from 400
-    left_margin = 100  # Doubled from 50
+    # Set font size and position
+    font_size = 800
+    left_margin = 100
     
     # Try to load a font, or use default if not available
     try:
@@ -65,33 +59,32 @@ def draw_arrow_character(draw):
 
 
 def draw_hollow_box(draw):
-    # Double the box dimensions
-    box_margin = 100  # Doubled from 50
-    box_size = 400    # Doubled from 200
+    # Define box dimensions
+    box_margin = 100
+    box_size = 400
     
     # Calculate box coordinates (top right corner)
     top_left = (image_width - box_margin - box_size, box_margin)
     bottom_right = (image_width - box_margin, box_margin + box_size)
     
-    # Scale the line width proportionally
-    line_width = 6  # Doubled from 3
+    # Draw the box outline
+    line_width = 6
     draw.rectangle([top_left, bottom_right], outline="black", width=line_width)
 
 
 def draw_upside_down_text(image):
     # Get the box position (must match the position in draw_hollow_box)
-    box_margin = 100  # Doubled from 50
-    box_size = 400    # Doubled from 200
+    box_margin = 100
+    box_size = 400
     top_left = (image_width - box_margin - box_size, box_margin)
     
     # Create a separate image for just the text at a higher resolution
-    text_size = box_size * 6  # Keep the same multiplier for scaling
+    text_size = box_size * 6
     text_img = Image.new("RGBA", (text_size, text_size), (0, 0, 0, 0))
     text_draw = ImageDraw.Draw(text_img)
     
-    # Add text with good resolution - double the font size
-    message = "Vision models need multimodal tools"
-    font_size = 60  # Doubled from 30
+    # Add text with good resolution
+    font_size = 60
     
     # Try to use a bold font with multiple fallback options
     try:
@@ -101,7 +94,6 @@ def draw_upside_down_text(image):
                           "FreeSansBold.ttf", "LiberationSans-Bold.ttf", "NotoSans-Bold.ttf"]:
             try:
                 font = ImageFont.truetype(font_name, font_size)
-                print(f"Using font: {font_name}")
                 font_found = True
                 break
             except IOError:
@@ -118,11 +110,9 @@ def draw_upside_down_text(image):
                 except IOError:
                     font = ImageFont.load_default()
     except Exception as e:
-        print(f"Font loading error: {e}")
-        # Final fallback
-        font = ImageFont.load_default()
+        raise Exception(f"No font found: {e}")
     
-    # Keep the same line structure
+    # Text lines
     lines = [
         "Vision",
         "models",
@@ -131,8 +121,8 @@ def draw_upside_down_text(image):
         "tools"
     ]
     
-    # Scale the line height proportionally
-    line_height = font_size + 16  # Doubled spacing from 8 to 16
+    # Set line spacing
+    line_height = font_size + 16
     total_height = len(lines) * line_height
     
     # Calculate starting position to center text
@@ -148,24 +138,15 @@ def draw_upside_down_text(image):
         x_position = (text_size - text_width) // 2
         y_position = start_y + (i * line_height)
         
-        # Draw the text multiple times with slightly larger offsets for the larger font
-        for offset in [(0, 0), (2, 0), (0, 2), (2, 2)]:  # Increased offset for larger text
+        # Draw the text multiple times with slight offsets for a bold effect
+        for offset in [(0, 0), (2, 0), (0, 2), (2, 2)]:
             text_draw.text((x_position + offset[0], y_position + offset[1]), line, fill="black", font=font)
-    
-    # Save the high-res text for debugging
-    text_img.save("text_high_res.png")
     
     # Rotate the text 180 degrees
     rotated_text = text_img.rotate(180, resample=Image.BICUBIC)
     
-    # Save the rotated text for debugging
-    rotated_text.save("text_rotated.png")
-    
     # Resize to the final box size
     final_text = rotated_text.resize((box_size, box_size), Image.LANCZOS)
-    
-    # Save the resized text for debugging
-    final_text.save("text_final.png")
     
     # Paste the text onto the overlay image at the box position
     image.paste(final_text, top_left, final_text)
