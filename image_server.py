@@ -116,7 +116,7 @@ def rotate_image(image_path: str, direction: str) -> Image:
 
 
 @mcp.tool()
-def crop_and_zoom(image_path: str, x_min: float, y_min: float, x_max: float, y_max: float) -> Image:
+def crop_and_zoom(image_path: str, x_min: float, y_min: float, x_max: float, y_max: float, zoom_factor: float = 1.0) -> Image:
     """
     Crop and zoom an image based on a normalized bounding box.
     
@@ -126,7 +126,7 @@ def crop_and_zoom(image_path: str, x_min: float, y_min: float, x_max: float, y_m
         y_min: Top boundary of crop box (normalized 0-1).
         x_max: Right boundary of crop box (normalized 0-1).
         y_max: Bottom boundary of crop box (normalized 0-1).
-        
+        zoom_factor: The factor to zoom by after cropping. Values less than 1.0 will reduce the size, and values greater than 1.0 will increase the size.
     Returns:
         An MCP Image object containing the cropped image data.
     """
@@ -148,28 +148,11 @@ def crop_and_zoom(image_path: str, x_min: float, y_min: float, x_max: float, y_m
     # Crop the image
     cropped_img = img.crop((left, top, right, bottom))
     
-    # Resize the image to the original size while maintaining aspect ratio of the crop
-    original_width, original_height = img.size
-    crop_width, crop_height = cropped_img.size
-    
-    # Calculate the scaling factor to fit the cropped image back to original dimensions
-    # while preserving aspect ratio
-    width_ratio = original_width / crop_width
-    height_ratio = original_height / crop_height
-    
-    # Use the smaller ratio to ensure the image fits within the original dimensions
-    scale_factor = min(width_ratio, height_ratio)
-    
-    # Calculate new dimensions
-    new_width = int(crop_width * scale_factor)
-    new_height = int(crop_height * scale_factor)
-    
-    # Resize the cropped image
-    resized_img = cropped_img.resize((new_width, new_height), PILImage.Resampling.LANCZOS)
+    # Zoom in
+    resized_img = cropped_img.resize((int(cropped_img.width * zoom_factor), int(cropped_img.height * zoom_factor)), PILImage.Resampling.LANCZOS)
     
     # Convert to MCP image and return
-    mcp_image = pil_image_to_mcp_image(resized_img
-                                       )
+    mcp_image = pil_image_to_mcp_image(resized_img)
     
     return mcp_image
 

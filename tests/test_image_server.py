@@ -123,28 +123,29 @@ class TestImageServer:
             assert np.array_equal(server_counterclockwise_array, local_counterclockwise_array), "Counterclockwise rotation doesn't match"
     
     @pytest.mark.asyncio
-    async def test_crop_and_zoom(self):
+    async def test_basic_crop(self):
         '''
-        Verifies that the crop_and_zoom tool works correctly by comparing server-processed
-        images with locally processed images using PIL
+        Verifies that the crop_and_zoom tool works correctly for a basic crop operation
+        with default zoom factor (1.0) by comparing server-cropped image with locally
+        cropped image using PIL
         '''
+        # Define crop coordinates (normalized 0-1)
+        x_min, y_min, x_max, y_max = 0.25, 0.25, 0.75, 0.75
+        
         async with self.get_session() as session:
-            # Test cropping the middle part of the image (25% to 75% on both axes)
-            x_min, y_min = 0.25, 0.25
-            x_max, y_max = 0.75, 0.75
-            
-            # Call the server's crop_and_zoom tool
+            # Call the crop_and_zoom tool with default zoom factor (1.0)
             crop_result = await session.call_tool(
-                "crop_and_zoom", 
+                "crop_and_zoom",
                 arguments={
-                    "image_path": self.image_path, 
-                    "x_min": x_min, 
-                    "y_min": y_min, 
-                    "x_max": x_max, 
+                    "image_path": self.image_path,
+                    "x_min": x_min,
+                    "y_min": y_min,
+                    "x_max": x_max,
                     "y_max": y_max
                 }
             )
             
+            # Process the result
             assert len(crop_result.content) == 1
             crop_bytes = base64.b64decode(crop_result.content[0].data)
             server_cropped_image = mcp_image_to_pil_image(crop_bytes)
@@ -155,23 +156,7 @@ class TestImageServer:
             top = int(y_min * height)
             right = int(x_max * width)
             bottom = int(y_max * height)
-            
-            # Crop the image
-            cropped_img = self.original_image.crop((left, top, right, bottom))
-            
-            # Calculate the scaling factor to fit the cropped image back to original dimensions
-            # while preserving aspect ratio
-            crop_width, crop_height = cropped_img.size
-            width_ratio = width / crop_width
-            height_ratio = height / crop_height
-            scale_factor = min(width_ratio, height_ratio)
-            
-            # Calculate new dimensions
-            new_width = int(crop_width * scale_factor)
-            new_height = int(crop_height * scale_factor)
-            
-            # Resize the cropped image
-            local_cropped_image = cropped_img.resize((new_width, new_height), PILImage.Resampling.LANCZOS)
+            local_cropped_image = self.original_image.crop((left, top, right, bottom))
             
             # Convert images to numpy arrays for comparison
             server_crop_array = np.array(server_cropped_image)
@@ -181,110 +166,299 @@ class TestImageServer:
             assert server_crop_array.shape == local_crop_array.shape, "Cropped image dimensions don't match"
             
             # Verify the server-cropped image matches the locally-cropped image
-            assert np.array_equal(server_crop_array, local_crop_array), "Cropped images don't match"
-            
-            # Test cropping the top-left corner of the image (0% to 40% on both axes)
-            x_min, y_min = 0.0, 0.0
-            x_max, y_max = 0.4, 0.4
-            
-            # Call the server's crop_and_zoom tool
-            corner_crop_result = await session.call_tool(
-                "crop_and_zoom", 
+            assert np.array_equal(server_crop_array, local_crop_array), "Cropped image content doesn't match"
+    
+    @pytest.mark.asyncio
+    async def test_zoom_in(self):
+        '''
+        Verifies that the crop_and_zoom tool works correctly with a zoom factor greater 
+        than 1.0 (zooming in) by comparing server-processed image with locally 
+        processed image using PIL
+        '''
+        # Define crop coordinates (normalized 0-1)
+        x_min, y_min, x_max, y_max = 0.3, 0.3, 0.7, 0.7
+        zoom_factor = 2.0  # Enlarge the image by 2x
+        
+        async with self.get_session() as session:
+            # Call the crop_and_zoom tool with zoom factor > 1.0
+            zoom_result = await session.call_tool(
+                "crop_and_zoom",
                 arguments={
-                    "image_path": self.image_path, 
-                    "x_min": x_min, 
-                    "y_min": y_min, 
-                    "x_max": x_max, 
-                    "y_max": y_max
+                    "image_path": self.image_path,
+                    "x_min": x_min,
+                    "y_min": y_min,
+                    "x_max": x_max,
+                    "y_max": y_max,
+                    "zoom_factor": zoom_factor
                 }
             )
             
-            assert len(corner_crop_result.content) == 1
-            corner_crop_bytes = base64.b64decode(corner_crop_result.content[0].data)
-            server_corner_image = mcp_image_to_pil_image(corner_crop_bytes)
+            # Process the result
+            assert len(zoom_result.content) == 1
+            zoom_bytes = base64.b64decode(zoom_result.content[0].data)
+            server_zoomed_image = mcp_image_to_pil_image(zoom_bytes)
             
-            # Create the same crop locally with PIL
+            # Create the same crop and zoom locally with PIL
+            width, height = self.original_image.size
             left = int(x_min * width)
             top = int(y_min * height)
             right = int(x_max * width)
             bottom = int(y_max * height)
             
-            # Crop the image
-            corner_cropped_img = self.original_image.crop((left, top, right, bottom))
+            # First crop the image
+            local_cropped_image = self.original_image.crop((left, top, right, bottom))
             
-            # Calculate the scaling factor to fit the cropped image back to original dimensions
-            corner_width, corner_height = corner_cropped_img.size
-            width_ratio = width / corner_width
-            height_ratio = height / corner_height
-            scale_factor = min(width_ratio, height_ratio)
-            
-            # Calculate new dimensions
-            new_width = int(corner_width * scale_factor)
-            new_height = int(corner_height * scale_factor)
-            
-            # Resize the cropped image
-            local_corner_image = corner_cropped_img.resize((new_width, new_height), PILImage.Resampling.LANCZOS)
+            # Then resize it according to zoom factor using the same resampling method
+            local_zoomed_image = local_cropped_image.resize(
+                (int(local_cropped_image.width * zoom_factor), 
+                 int(local_cropped_image.height * zoom_factor)),
+                PILImage.Resampling.LANCZOS
+            )
             
             # Convert images to numpy arrays for comparison
-            server_corner_array = np.array(server_corner_image)
-            local_corner_array = np.array(local_corner_image)
+            server_zoom_array = np.array(server_zoomed_image)
+            local_zoom_array = np.array(local_zoomed_image)
             
             # Verify dimensions match
-            assert server_corner_array.shape == local_corner_array.shape, "Corner crop dimensions don't match"
+            assert server_zoom_array.shape == local_zoom_array.shape, "Zoomed image dimensions don't match"
             
-            # Verify the server-cropped image matches the locally-cropped image
-            assert np.array_equal(server_corner_array, local_corner_array), "Corner crop images don't match"
+            # Verify the image content matches
+            assert np.array_equal(server_zoom_array, local_zoom_array), "Zoomed image content doesn't match"
     
     @pytest.mark.asyncio
-    async def test_crop_and_zoom_invalid_coordinates(self):
+    async def test_zoom_out(self):
         '''
-        Verifies that the crop_and_zoom tool properly handles invalid coordinates
+        Verifies that the crop_and_zoom tool works correctly with a zoom factor less
+        than 1.0 (zooming out) by comparing server-processed image with locally 
+        processed image using PIL
+        '''
+        # Define crop coordinates (normalized 0-1)
+        x_min, y_min, x_max, y_max = 0.1, 0.1, 0.9, 0.9
+        zoom_factor = 0.5  # Reduce the image size by half
+        
+        async with self.get_session() as session:
+            # Call the crop_and_zoom tool with zoom factor < 1.0
+            zoom_result = await session.call_tool(
+                "crop_and_zoom",
+                arguments={
+                    "image_path": self.image_path,
+                    "x_min": x_min,
+                    "y_min": y_min,
+                    "x_max": x_max,
+                    "y_max": y_max,
+                    "zoom_factor": zoom_factor
+                }
+            )
+            
+            # Process the result
+            assert len(zoom_result.content) == 1
+            zoom_bytes = base64.b64decode(zoom_result.content[0].data)
+            server_zoomed_image = mcp_image_to_pil_image(zoom_bytes)
+            
+            # Create the same crop and zoom locally with PIL
+            width, height = self.original_image.size
+            left = int(x_min * width)
+            top = int(y_min * height)
+            right = int(x_max * width)
+            bottom = int(y_max * height)
+            
+            # First crop the image
+            local_cropped_image = self.original_image.crop((left, top, right, bottom))
+            
+            # Then resize it according to zoom factor using the same resampling method
+            local_zoomed_image = local_cropped_image.resize(
+                (int(local_cropped_image.width * zoom_factor), 
+                 int(local_cropped_image.height * zoom_factor)),
+                PILImage.Resampling.LANCZOS
+            )
+            
+            # Convert images to numpy arrays for comparison
+            server_zoom_array = np.array(server_zoomed_image)
+            local_zoom_array = np.array(local_zoomed_image)
+            
+            # Verify dimensions match
+            assert server_zoom_array.shape == local_zoom_array.shape, "Zoomed out image dimensions don't match"
+            
+            # Verify the image content matches
+            assert np.array_equal(server_zoom_array, local_zoom_array), "Zoomed out image content doesn't match"
+    
+    @pytest.mark.asyncio
+    async def test_full_image_crop(self):
+        '''
+        Verifies that the crop_and_zoom tool works correctly when cropping the entire image
+        (using coordinates 0,0,1,1) by comparing the result with the original image
+        '''
+        # Define coordinates to crop the entire image (normalized 0-1)
+        x_min, y_min, x_max, y_max = 0.0, 0.0, 1.0, 1.0
+        
+        async with self.get_session() as session:
+            # Call the crop_and_zoom tool with coordinates for full image
+            crop_result = await session.call_tool(
+                "crop_and_zoom",
+                arguments={
+                    "image_path": self.image_path,
+                    "x_min": x_min,
+                    "y_min": y_min,
+                    "x_max": x_max,
+                    "y_max": y_max
+                }
+            )
+            
+            # Process the result
+            assert len(crop_result.content) == 1
+            crop_bytes = base64.b64decode(crop_result.content[0].data)
+            server_cropped_image = mcp_image_to_pil_image(crop_bytes)
+            
+            # Create the same crop locally with PIL
+            width, height = self.original_image.size
+            left = int(x_min * width)
+            top = int(y_min * height)
+            right = int(x_max * width)
+            bottom = int(y_max * height)
+            local_cropped_image = self.original_image.crop((left, top, right, bottom))
+            
+            # Convert images to numpy arrays for comparison
+            server_crop_array = np.array(server_cropped_image)
+            local_crop_array = np.array(local_cropped_image)
+            original_array = np.array(self.original_image)
+            
+            # Verify dimensions match the original image
+            assert server_crop_array.shape == original_array.shape, "Full image crop dimensions don't match original"
+            assert local_crop_array.shape == original_array.shape, "Local full image crop dimensions don't match original"
+            
+            # Verify the server-cropped image matches the original image
+            assert np.array_equal(server_crop_array, original_array), "Full image crop doesn't match original image"
+            
+            # Verify the server-cropped image matches the locally-cropped image
+            assert np.array_equal(server_crop_array, local_crop_array), "Full image crop doesn't match local crop"
+    
+    @pytest.mark.asyncio
+    async def test_small_region_crop(self):
+        '''
+        Verifies that the crop_and_zoom tool works correctly when cropping a very small
+        region of the image by comparing server-processed image with locally processed
+        image using PIL
+        '''
+        # Define coordinates to crop a very small region (normalized 0-1)
+        x_min, y_min, x_max, y_max = 0.45, 0.45, 0.55, 0.55  # Just 10% of the image in the center
+        
+        async with self.get_session() as session:
+            # Call the crop_and_zoom tool with coordinates for a small region
+            crop_result = await session.call_tool(
+                "crop_and_zoom",
+                arguments={
+                    "image_path": self.image_path,
+                    "x_min": x_min,
+                    "y_min": y_min,
+                    "x_max": x_max,
+                    "y_max": y_max
+                }
+            )
+            
+            # Process the result
+            assert len(crop_result.content) == 1
+            crop_bytes = base64.b64decode(crop_result.content[0].data)
+            server_cropped_image = mcp_image_to_pil_image(crop_bytes)
+            
+            # Create the same crop locally with PIL
+            width, height = self.original_image.size
+            left = int(x_min * width)
+            top = int(y_min * height)
+            right = min(int(x_max * width), width)
+            bottom = min(int(y_max * height), height)
+            local_cropped_image = self.original_image.crop((left, top, right, bottom))
+            
+            # Convert images to numpy arrays for comparison
+            server_crop_array = np.array(server_cropped_image)
+            local_crop_array = np.array(local_cropped_image)
+            
+            # Verify dimensions match
+            assert server_crop_array.shape == local_crop_array.shape, "Small region crop dimensions don't match"
+            
+            # Verify the server-cropped image matches the locally-cropped image
+            assert np.array_equal(server_crop_array, local_crop_array), "Small region crop content doesn't match"
+            
+            # Additional check: verify the dimensions of the result are exactly as expected
+            # Calculate expected dimensions using same algorithm as the server
+            expected_width = right - left
+            expected_height = bottom - top
+            
+            # The cropped dimensions should match our calculations exactly
+            assert server_cropped_image.width == expected_width, f"Small region crop width incorrect: got {server_cropped_image.width}, expected {expected_width}"
+            assert server_cropped_image.height == expected_height, f"Small region crop height incorrect: got {server_cropped_image.height}, expected {expected_height}"
+    
+    @pytest.mark.asyncio
+    async def test_invalid_coordinates(self):
+        '''
+        Verifies that the crop_and_zoom tool correctly handles invalid coordinates
+        by returning appropriate error responses
         '''
         async with self.get_session() as session:
-            
-            # Test with x_min > x_max
-            result = await session.call_tool(
-                "crop_and_zoom", 
+            # Test case 1: x_min > x_max
+            response = await session.call_tool(
+                "crop_and_zoom",
                 arguments={
-                    "image_path": self.image_path, 
-                    "x_min": 0.8, 
-                    "y_min": 0.2, 
-                    "x_max": 0.5, 
+                    "image_path": self.image_path,
+                    "x_min": 0.8,
+                    "y_min": 0.2,
+                    "x_max": 0.3,  # Less than x_min
                     "y_max": 0.7
                 }
             )
+            assert len(response.content) == 1
+            response_content = response.content[0]
+            # Verify response has error information
+            assert "Invalid bounding box coordinates" in response_content.text
             
-            result = str(result)
-            assert "Invalid bounding box" in result
+            # Test case 2: y_min > y_max
+            response = await session.call_tool(
+                "crop_and_zoom",
+                arguments={
+                    "image_path": self.image_path,
+                    "x_min": 0.2,
+                    "y_min": 0.8,
+                    "x_max": 0.7,
+                    "y_max": 0.3  # Less than y_min
+                }
+            )
+            assert len(response.content) == 1
+            response_content = response.content[0]
+            # Verify response has error information
+            assert "Invalid bounding box coordinates" in response_content.text
+            
+            # Test case 3: Coordinates outside the 0-1 range (negative)
+            response = await session.call_tool(
+                "crop_and_zoom",
+                arguments={
+                    "image_path": self.image_path,
+                    "x_min": -0.2,  # Negative value
+                    "y_min": 0.2,
+                    "x_max": 0.7,
+                    "y_max": 0.8
+                }
+            )
+            assert len(response.content) == 1
+            response_content = response.content[0]
+            # Verify response has error information
+            assert "Invalid bounding box coordinates" in response_content.text
+            
+            # Test case 4: Coordinates outside the 0-1 range (greater than 1)
+            response = await session.call_tool(
+                "crop_and_zoom",
+                arguments={
+                    "image_path": self.image_path,
+                    "x_min": 0.2,
+                    "y_min": 0.2,
+                    "x_max": 1.2,  # Greater than 1
+                    "y_max": 0.8
+                }
+            )
+            assert len(response.content) == 1
+            response_content = response.content[0]
+            # Verify response has error information
+            assert "Invalid bounding box coordinates" in response_content.text
+    
+    
+    
 
-            
-            # Test with coordinates outside the valid range (0-1)
-            result = await session.call_tool(
-                "crop_and_zoom", 
-                arguments={
-                    "image_path": self.image_path, 
-                    "x_min": -0.2, 
-                    "y_min": 0.2, 
-                    "x_max": 0.5, 
-                    "y_max": 0.7
-                }
-            )
-            
-            result = str(result)
-            assert "Invalid bounding box" in result
-            
-            # Test with coordinates outside the valid range (0-1)
-            result = await session.call_tool(
-                "crop_and_zoom", 
-                arguments={
-                    "image_path": self.image_path, 
-                    "x_min": 0.2, 
-                    "y_min": 0.2, 
-                    "x_max": 1.5, 
-                    "y_max": 0.7
-                }
-            )
-            
-            result = str(result)
-            assert "Invalid bounding box" in result
             
